@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consolidation Curve Interpreter</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f2f1ea;
+    --paper-2: #e9e7dc;
+    --ink: #22282f;
+    --ink-soft: #4d5560;
+    --rule: #c7c2b0;
+    --rule-strong: #9a9382;
+    --accent-virgin: #1b7a6b;      /* teal - virgin compression line */
+    --accent-casagrande: #8e44ad;  /* purple - Casagrande construction */
+    --accent-recomp: #d68910;      /* amber - recompression line */
+    --accent-pacheco: #2874a6;     /* blue - Pacheco-Silva */
+    --accent-field: #c0392b;       /* red - Schmertmann field curve */
+    --card-bg: #fbfaf6;
+    --focus: #2f6f62;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --paper: #1b1e22;
+      --paper-2: #23262b;
+      --ink: #e8e6df;
+      --ink-soft: #b3aea0;
+      --rule: #3a3d42;
+      --rule-strong: #54585f;
+      --accent-virgin: #4fb3a0;
+      --accent-casagrande: #c58fd9;
+      --accent-recomp: #e0ac4a;
+      --accent-pacheco: #6fa8d8;
+      --accent-field: #e0776a;
+      --card-bg: #24272c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1b1e22;
+    --paper-2: #23262b;
+    --ink: #e8e6df;
+    --ink-soft: #b3aea0;
+    --rule: #3a3d42;
+    --rule-strong: #54585f;
+    --accent-virgin: #4fb3a0;
+    --accent-casagrande: #c58fd9;
+    --accent-recomp: #e0ac4a;
+    --accent-pacheco: #6fa8d8;
+    --accent-field: #e0776a;
+    --card-bg: #24272c;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+  body { min-height: 100vh; }
+
+  .wrap {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+  }
+
+  header.top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 14px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+  header.top h1 {
+    font-size: 1.5rem;
+    margin: 0;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+  }
+  header.top .sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--card-bg);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+  }
+  .panel h2 {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-soft);
+    margin: 0 0 12px 0;
+    font-weight: 600;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 8px;
+  }
+
+  table.datatable {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.82rem;
+  }
+  table.datatable th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.72rem;
+    letter-spacing: 0.01em;
+    color: var(--ink-soft);
+    padding: 4px 4px 6px;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  table.datatable td {
+    padding: 3px 4px;
+    border-bottom: 1px solid var(--rule);
+  }
+  table.datatable input[type="number"] {
+    width: 100%;
+    border: 1px solid transparent;
+    background: transparent;
+    font-family: inherit;
+    font-size: inherit;
+    color: var(--ink);
+    padding: 3px 4px;
+    border-radius: 2px;
+  }
+  table.datatable input[type="number"]:focus {
+    outline: none;
+    border-color: var(--focus);
+    background: var(--paper);
+  }
+  table.datatable input[type="checkbox"] { cursor: pointer; accent-color: var(--focus); }
+  table.datatable .rmbtn {
+    background: none; border: none; color: var(--accent-field);
+    cursor: pointer; font-size: 0.95rem; padding: 0 4px; line-height: 1;
+  }
+  .table-actions {
+    display: flex; gap: 8px; margin-top: 10px;
+  }
+
+  button.btn {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 7px 12px;
+    border-radius: 3px;
+    border: 1px solid var(--rule-strong);
+    background: var(--paper-2);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button.btn:hover { border-color: var(--ink); }
+  button.btn.primary {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .field {
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .field label {
+    font-size: 0.72rem;
+    letter-spacing: 0.01em;
+    line-height: 1.3;
+    min-height: 2.6em;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+  .field { min-width: 0; }
+  .field input, .field select {
+    width: 100%;
+    height: 34px;
+    box-sizing: border-box;
+    max-width: 100%;
+    line-height: 1.2;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    padding: 0 8px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 2px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .field select {
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+      linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+    background-position: calc(100% - 16px) calc(50% - 2px), calc(100% - 11px) calc(50% - 2px);
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 26px;
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--focus); }
+
+  .hint {
+    font-size: 0.74rem;
+    color: var(--ink-soft);
+    line-height: 1.5;
+    margin: 8px 0 0;
+  }
+
+  .toggles {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .toggles-inline {
+    flex-direction: row; flex-wrap: wrap;
+    gap: 8px 18px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+  }
+  .search-range-row {
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .search-range-row input[type="number"] {
+    width: 84px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    padding: 4px 6px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 2px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .search-range-row input[type="number"]:focus { outline: none; border-color: var(--focus); }
+  .toggle-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.82rem;
+  }
+  .toggle-row input { accent-color: var(--focus); cursor: pointer; }
+  .swatch {
+    width: 14px; height: 3px; border-radius: 1px; display: inline-block;
+  }
+
+  .chart-panel { padding: 16px; position: relative; }
+  .chart-toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px;
+  }
+  .chart-hint { font-size: 0.72rem; color: var(--ink-soft); }
+  .chart-zoom-btns { display: flex; gap: 6px; }
+  .zoombtn { width: 30px; padding: 5px 0; text-align: center; font-size: 0.95rem; }
+  svg#chart { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; -moz-user-select: none; }
+  svg#chart.dragging { cursor: grabbing; }
+  .chart-tooltip {
+    position: absolute;
+    display: none;
+    pointer-events: none;
+    background: var(--card-bg);
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    padding: 7px 9px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.74rem;
+    line-height: 1.5;
+    color: var(--ink);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+    white-space: nowrap;
+    z-index: 10;
+  }
+  .chart-tooltip .row { display: flex; gap: 6px; }
+  .chart-tooltip .stress { font-weight: 600; }
+  svg#chart { width: 100%; height: auto; display: block; }
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+  }
+  .result-card {
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--ink);
+    border-radius: 2px;
+    padding: 10px 12px;
+    background: var(--paper);
+  }
+  .result-card.virgin { border-left-color: var(--accent-virgin); }
+  .result-card.casagrande { border-left-color: var(--accent-casagrande); }
+  .result-card.recomp { border-left-color: var(--accent-recomp); }
+  .result-card.pacheco { border-left-color: var(--accent-pacheco); }
+  .result-card.field { border-left-color: var(--accent-field); }
+  .result-card .label {
+    font-size: 0.7rem; letter-spacing: 0.02em;
+    color: var(--ink-soft); font-weight: 600; margin-bottom: 4px;
+  }
+  .result-card .value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.15rem; font-weight: 600;
+  }
+  .result-card .unit { font-size: 0.7rem; color: var(--ink-soft); margin-left: 3px; }
+  .result-card .note { font-size: 0.68rem; color: var(--ink-soft); margin-top: 4px; line-height: 1.35; }
+
+  .method-note {
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+    line-height: 1.55;
+    border-top: 1px solid var(--rule);
+    padding-top: 10px;
+    margin-top: 14px;
+  }
+  .method-note b { color: var(--ink); }
+
+  .results-header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+  .results-header h2 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); font-weight: 600; }
+
+  footer.credit {
+    margin-top: 28px;
+    font-size: 0.7rem;
+    color: var(--ink-soft);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Consolidation Curve Interpreter</h1>
+  </header>
+
+  <div class="grid">
+
+    <!-- LEFT: inputs -->
+    <div>
+      <div class="panel">
+        <h2>Test data</h2>
+        <div class="table-actions" style="margin-bottom:12px">
+          <button class="btn" id="togglePaste" type="button">Paste from spreadsheet&hellip;</button>
+        </div>
+        <div id="pasteBox" style="display:none; margin-bottom:12px;">
+          <textarea id="pasteArea" rows="6" style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:0.76rem; border:1px solid var(--rule-strong); border-radius:2px; background:var(--paper); color:var(--ink); padding:6px;" placeholder="Paste full lab-sheet rows (tab-separated, stress in the 2nd column, strain % last) &mdash; or just a bare stress sequence like 100, 200, 400, 800, 1600, 3200&hellip; to set up the loading schedule before readings exist."></textarea>
+          <div class="table-actions">
+            <button class="btn primary" id="parsePaste" type="button">Parse &amp; load rows</button>
+            <button class="btn" id="cancelPaste" type="button">Cancel</button>
+          </div>
+        </div>
+        <table class="datatable" id="dataTable">
+          <thead>
+            <tr>
+              <th style="width:26%">&sigma;&prime;<sub>v</sub></th>
+              <th style="width:22%">Strain (%)</th>
+              <th style="width:14%">Phase</th>
+              <th style="width:13%" title="Include in recompression-line regression">C<sub>r</sub></th>
+              <th style="width:13%" title="Include in virgin compression-line regression">C<sub>c</sub></th>
+              <th style="width:4%"></th>
+            </tr>
+          </thead>
+          <tbody id="dataRows"></tbody>
+        </table>
+        <div class="table-actions">
+          <button class="btn" id="addRow">+ Add point</button>
+          <button class="btn" id="loadSample">Load sample data</button>
+        </div>
+        <p class="hint">Strain is cumulative axial strain (%) from the start of the test. Rows keep the order you enter them in. A point is auto-flagged <b>Load</b> if its stress is a new maximum for the test, otherwise <b>Rebound</b> (unload/reload) &mdash; this keeps an unload branch from distorting the Casagrande curvature search or the virgin line. Check <b>C<sub>r</sub></b> on either branch (an unload leg usually gives the cleanest estimate); check <b>C<sub>c</sub></b> only on the straight-line loading branch.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Reference state</h2>
+        <div class="field-row">
+          <div class="field">
+            <label for="pressureUnit">Stress unit</label>
+            <select id="pressureUnit">
+              <option value="kPa">kPa</option>
+              <option value="ksf">ksf</option>
+              <option value="tsf">tsf</option>
+              <option value="psf" selected>psf</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="e0">Initial void ratio, e&#8320;</label>
+            <input type="number" id="e0" step="0.001">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="sigmaV0">In-situ &sigma;&prime;<sub>v0</sub></label>
+            <input type="number" id="sigmaV0" step="0.1">
+          </div>
+          <div class="field">
+            <label for="pcSource">Field curve uses</label>
+            <select id="pcSource">
+              <option value="casagrande" selected>Casagrande &sigma;&prime;<sub>p</sub></option>
+              <option value="pacheco">Pacheco-Silva &sigma;&prime;<sub>p</sub></option>
+            </select>
+          </div>
+        </div>
+        <p class="hint">e&#8320; is the void ratio at the start of the test (assumed to equal the in-situ void ratio). It converts strain to void ratio internally (e = e&#8320; &minus; &epsilon;&middot;(1+e&#8320;)) and anchors the recompression line and the 0.42e&#8320; correction.</p>
+      </div>
+    </div>
+
+    <!-- RIGHT: chart + results -->
+    <div>
+      <div class="panel chart-panel">
+        <div class="chart-toolbar">
+          <span class="chart-hint">Scroll to zoom &middot; drag to pan &middot; hover a point for its values</span>
+          <div class="chart-zoom-btns">
+            <button class="btn zoombtn" id="zoomOut" type="button" title="Zoom out">&minus;</button>
+            <button class="btn zoombtn" id="zoomIn" type="button" title="Zoom in">+</button>
+            <button class="btn" id="zoomReset" type="button">Reset view</button>
+          </div>
+        </div>
+        <svg id="chart" viewBox="0 0 900 610" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="chartTooltip" class="chart-tooltip"></div>
+        <div class="toggles toggles-inline">
+          <label class="toggle-row"><input type="checkbox" id="showCasagrande" checked><span class="swatch" style="background:var(--accent-casagrande)"></span> Casagrande construction</label>
+          <label class="toggle-row"><input type="checkbox" id="showPacheco" checked><span class="swatch" style="background:var(--accent-pacheco)"></span> Pacheco-Silva construction</label>
+          <label class="toggle-row"><input type="checkbox" id="showRecomp" checked><span class="swatch" style="background:var(--accent-recomp)"></span> Recompression line</label>
+          <label class="toggle-row"><input type="checkbox" id="showField" checked><span class="swatch" style="background:var(--accent-field)"></span> 0.42e&#8320; field curve</label>
+        </div>
+        <div class="search-range-row">
+          <span class="chart-hint">Casagrande curvature search: from</span>
+          <input type="number" id="searchMin" step="any" placeholder="auto">
+          <span class="chart-hint">to</span>
+          <input type="number" id="searchMax" step="any" placeholder="auto">
+          <span class="chart-hint" id="searchUnitLabel"></span>
+          <span class="chart-hint">&mdash; leave blank for auto (first loading point to start of virgin line)</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="results-header">
+          <h2 style="margin:0; border:none; padding:0;">Results</h2>
+          <button class="btn primary" id="printReport" type="button">Print documentation&hellip;</button>
+        </div>
+        <div class="results-grid" id="resultsGrid"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="credit">Casagrande (1936) &middot; Pacheco-Silva (1970) &middot; Schmertmann sample-disturbance correction</footer>
+</div>
+
+<script>
+(function(){
+  const CHART = {W:900, H:610, ML:72, MR:28, MT:28, MB:90};
+  CHART.plotW = CHART.W - CHART.ML - CHART.MR;
+  CHART.plotH = CHART.H - CHART.MT - CHART.MB;
+  let autoView = null;      // last auto-fit domain, computed fresh from data each render
+  let viewOverride = null;  // set once the user zooms/pans; null means "auto-fit"
+  let currentView = null;   // whichever of the two is actually in use for the current render
+  let lastRes = null, lastUnit = null; // cache so pan/zoom can redraw without recomputing stats
+
+  const els = {
+    dataRows: document.getElementById('dataRows'),
+    addRow: document.getElementById('addRow'),
+    loadSample: document.getElementById('loadSample'),
+    pressureUnit: document.getElementById('pressureUnit'),
+    togglePaste: document.getElementById('togglePaste'),
+    pasteBox: document.getElementById('pasteBox'),
+    pasteArea: document.getElementById('pasteArea'),
+    parsePaste: document.getElementById('parsePaste'),
+    cancelPaste: document.getElementById('cancelPaste'),
+    e0: document.getElementById('e0'),
+    sigmaV0: document.getElementById('sigmaV0'),
+    pcSource: document.getElementById('pcSource'),
+    showCasagrande: document.getElementById('showCasagrande'),
+    showPacheco: document.getElementById('showPacheco'),
+    showField: document.getElementById('showField'),
+    showRecomp: document.getElementById('showRecomp'),
+    resultsGrid: document.getElementById('resultsGrid'),
+    chart: document.getElementById('chart'),
+    chartTooltip: document.getElementById('chartTooltip'),
+    zoomIn: document.getElementById('zoomIn'),
+    zoomOut: document.getElementById('zoomOut'),
+    zoomReset: document.getElementById('zoomReset'),
+    printReport: document.getElementById('printReport'),
+    searchMin: document.getElementById('searchMin'),
+    searchMax: document.getElementById('searchMax'),
+    searchUnitLabel: document.getElementById('searchUnitLabel'),
+  };
+
+  // "val" holds cumulative axial strain (%) from the start of the test
+  const SAMPLE_STRAIN = [
+    {p:100,    val:0.29,  cr:false, cc:false},
+    {p:200,    val:0.55,  cr:false, cc:false},
+    {p:400,    val:0.91,  cr:false, cc:false},
+    {p:800,    val:1.32,  cr:false, cc:false},
+    {p:1600,   val:1.85,  cr:false, cc:false},
+    {p:3200,   val:2.58,  cr:false, cc:false},
+    {p:3200,   val:2.58,  cr:false, cc:false},
+    {p:5000,   val:3.10,  cr:false, cc:false},
+    {p:8000,   val:3.98,  cr:false, cc:false},
+    {p:12000,  val:4.98,  cr:false, cc:false},
+    {p:18000,  val:6.78,  cr:false, cc:false},
+    {p:36000,  val:10.24, cr:false, cc:false},
+    {p:72000,  val:14.36, cr:false, cc:true},
+    {p:100000, val:16.49, cr:false, cc:true},
+    {p:25000,  val:15.29, cr:false, cc:false},
+    {p:6000,   val:14.03, cr:false, cc:false},
+    {p:1500,   val:12.64, cr:false, cc:false},
+    {p:400,    val:11.34, cr:true,  cc:false},
+    {p:100,    val:10.47, cr:true,  cc:false},
+  ];
+
+  let rows = SAMPLE_STRAIN.map(r => ({...r}));
+
+  // convert a row's raw strain (%) to void ratio e, given e0
+  function toVoidRatio(val, e0){
+    return e0 - (val/100)*(1+e0); // e = e0 - strain*(1+e0)
+  }
+
+  // annotate rows (in original entry order) with phase: 'load' if new max stress, else 'unload'
+  function withPhase(rowArr){
+    let runningMax = -Infinity;
+    return rowArr.map(r => {
+      const isLoad = r.p >= runningMax - 1e-9;
+      if(r.p > runningMax) runningMax = r.p;
+      return {...r, phase: isLoad ? 'load' : 'unload'};
+    });
+  }
+
+  function renderTable(){
+    els.dataRows.innerHTML = '';
+    const phased = withPhase(rows);
+    phased.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      const phaseLabel = r.phase === 'load' ? 'Load' : 'Rebound';
+      const phaseColor = r.phase === 'load' ? 'var(--accent-virgin)' : 'var(--accent-pacheco)';
+      tr.innerHTML = `
+        <td><input type="number" step="any" value="${r.p}" data-i="${i}" data-f="p"></td>
+        <td><input type="number" step="any" value="${r.val===null||r.val===undefined?'':r.val}" placeholder="${r.val===null?'enter reading':''}" data-i="${i}" data-f="val"></td>
+        <td style="font-size:0.68rem; color:${phaseColor}; font-weight:600;">${phaseLabel}</td>
+        <td style="text-align:center"><input type="checkbox" ${r.cr?'checked':''} data-i="${i}" data-f="cr"></td>
+        <td style="text-align:center"><input type="checkbox" ${r.cc?'checked':''} data-i="${i}" data-f="cc"></td>
+        <td><button class="rmbtn" data-i="${i}" title="Remove">&times;</button></td>
+      `;
+      els.dataRows.appendChild(tr);
+    });
+    els.dataRows.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', onCellChange);
+      inp.addEventListener('change', onCellChange);
+    });
+    els.dataRows.querySelectorAll('.rmbtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = +btn.dataset.i;
+        rows.splice(i,1);
+        renderTable();
+        recompute();
+      });
+    });
+  }
+
+  function onCellChange(e){
+    const i = +e.target.dataset.i;
+    const f = e.target.dataset.f;
+    if(f==='cr' || f==='cc'){
+      rows[i][f] = e.target.checked;
+    } else if(f==='val' && e.target.value.trim()===''){
+      rows[i][f] = null; // reading not entered yet
+    } else {
+      const v = parseFloat(e.target.value);
+      rows[i][f] = isNaN(v) ? (f==='val' ? null : 0) : v;
+      if(f==='p') renderTable(); // phase labels may shift
+    }
+    recompute();
+  }
+
+  els.addRow.addEventListener('click', () => {
+    rows.push({p: 100, val: 0, cr:false, cc:false});
+    renderTable();
+    recompute();
+  });
+  els.loadSample.addEventListener('click', () => {
+    rows = SAMPLE_STRAIN.map(r => ({...r}));
+    els.e0.value = 1.000;
+    els.sigmaV0.value = 1000;
+    els.pressureUnit.value = 'psf';
+    els.searchUnitLabel.textContent = els.pressureUnit.value;
+    renderTable();
+    recompute();
+  });
+
+  els.togglePaste.addEventListener('click', () => {
+    els.pasteBox.style.display = els.pasteBox.style.display==='none' ? 'block' : 'none';
+  });
+  els.cancelPaste.addEventListener('click', () => {
+    els.pasteBox.style.display = 'none';
+    els.pasteArea.value = '';
+  });
+  els.parsePaste.addEventListener('click', () => {
+    const parsed = parsePasteText(els.pasteArea.value);
+    if(parsed.length === 0){
+      alert('Could not find any data rows. Expected stress in the 2nd column and void ratio / strain in the last column, tab-separated.');
+      return;
+    }
+    rows = parsed;
+    els.pasteBox.style.display = 'none';
+    els.pasteArea.value = '';
+    renderTable();
+    recompute();
+  });
+
+  function parsePasteText(text){
+    // Attempt 1: two-column rows (stress in field[1], e/strain as the last non-blank field) —
+    // matches a lab-sheet export pasted as multiple tab-separated columns.
+    const out = [];
+    const lines = text.split('\n');
+    for(const raw of lines){
+      if(!raw.trim()) continue;
+      let fields = raw.split('\t');
+      if(fields.length < 3) fields = raw.trim().split(/\s+/);
+      if(fields.length < 3) continue;
+      const nums = fields.map(f => f.trim()==='' ? NaN : parseFloat(f));
+      const stress = nums[1];
+      let val = NaN;
+      for(let i=nums.length-1;i>=0;i--){ if(!isNaN(nums[i])){ val = nums[i]; break; } }
+      if(isNaN(stress) || isNaN(val) || stress<=0) continue;
+      out.push({p:stress, val, cr:false, cc:false});
+    }
+    if(out.length > 0) return out;
+
+    // Attempt 2: a bare list of load-step stresses only (comma/space/tab/newline separated,
+    // one line or many) — e.g. pasting just the planned loading sequence before readings exist.
+    const tokens = text.match(/-?\d+\.?\d*/g);
+    if(tokens){
+      const stresses = tokens.map(t=>parseFloat(t)).filter(v => !isNaN(v) && v>0);
+      if(stresses.length >= 2){
+        return stresses.map(p => ({p, val:null, cr:false, cc:false}));
+      }
+    }
+    return [];
+  }
+
+  [els.e0, els.sigmaV0, els.pcSource, els.pressureUnit,
+   els.showCasagrande, els.showPacheco, els.showField, els.showRecomp,
+   els.searchMin, els.searchMax
+  ].forEach(el => el.addEventListener('input', recompute));
+
+  els.pressureUnit.addEventListener('input', () => {
+    els.searchUnitLabel.textContent = els.pressureUnit.value;
+  });
+
+  // ---------- math ----------
+
+  function linreg(pts){
+    const n = pts.length;
+    if(n < 2) return null;
+    const sx = pts.reduce((a,d)=>a+d.x,0);
+    const sy = pts.reduce((a,d)=>a+d.e,0);
+    const sxx = pts.reduce((a,d)=>a+d.x*d.x,0);
+    const sxy = pts.reduce((a,d)=>a+d.x*d.e,0);
+    const denom = (n*sxx - sx*sx);
+    if(Math.abs(denom) < 1e-12) return null;
+    const m = (n*sxy - sx*sy)/denom;
+    const b = (sy - m*sx)/n;
+    return {m,b};
+  }
+
+  // monotone cubic Hermite interpolation (Fritsch-Carlson) through (x,e) knots, so the
+  // curve drawn between lab readings never overshoots or oscillates the way a plain cubic
+  // spline can -- needed both to plot a believable smooth curve and to search for curvature
+  // continuously, not just at the lab readings themselves.
+  function monotoneTangents(xs, ys){
+    const n = xs.length;
+    if(n < 2) return [0];
+    const d = [];
+    for(let i=0;i<n-1;i++) d.push((ys[i+1]-ys[i])/(xs[i+1]-xs[i]));
+    const m = new Array(n);
+    m[0] = d[0];
+    m[n-1] = d[n-2];
+    for(let i=1;i<n-1;i++) m[i] = (d[i-1]+d[i])/2;
+    for(let i=0;i<n-1;i++){ if(d[i] === 0){ m[i]=0; m[i+1]=0; } }
+    for(let i=0;i<n-1;i++){
+      if(d[i] === 0) continue;
+      const a = m[i]/d[i], b = m[i+1]/d[i];
+      const s = a*a+b*b;
+      if(s > 9){
+        const tau = 3/Math.sqrt(s);
+        m[i] = tau*a*d[i];
+        m[i+1] = tau*b*d[i];
+      }
+    }
+    return m;
+  }
+
+  // value, first and second derivative of the Hermite curve at xq (clamped to the knot range)
+  function hermiteEval(hermite, xq){
+    const {xs, ys, ms} = hermite;
+    const n = xs.length;
+    if(n < 2) return {y:ys[0], dy:0, d2y:0};
+    // beyond the tested range, extrapolate linearly along the tangent at that end, rather
+    // than clamping flat -- needed so Pacheco-Silva's point B (which can fall below the
+    // lowest tested stress) still sits on the same curve, extended, not on a flat plateau
+    if(xq < xs[0]) return {y: ys[0] + ms[0]*(xq-xs[0]), dy: ms[0], d2y: 0};
+    if(xq > xs[n-1]) return {y: ys[n-1] + ms[n-1]*(xq-xs[n-1]), dy: ms[n-1], d2y: 0};
+    let k = 0;
+    for(let i=0;i<n-1;i++){ if(xq>=xs[i] && xq<=xs[i+1]){ k=i; break; } }
+    const h = xs[k+1]-xs[k];
+    const t = h===0 ? 0 : (xq-xs[k])/h;
+    const h00=2*t**3-3*t**2+1, h10=t**3-2*t**2+t, h01=-2*t**3+3*t**2, h11=t**3-t**2;
+    const y = h00*ys[k] + h10*h*ms[k] + h01*ys[k+1] + h11*h*ms[k+1];
+    if(h===0) return {y, dy:0, d2y:0};
+    const dh00=6*t**2-6*t, dh10=3*t**2-4*t+1, dh01=-6*t**2+6*t, dh11=3*t**2-2*t;
+    const dy = (dh00*ys[k] + dh10*h*ms[k] + dh01*ys[k+1] + dh11*h*ms[k+1])/h;
+    const d2h00=12*t-6, d2h10=6*t-4, d2h01=-12*t+6, d2h11=6*t-2;
+    const d2y = (d2h00*ys[k] + d2h10*h*ms[k] + d2h01*ys[k+1] + d2h11*h*ms[k+1])/(h*h);
+    return {y, dy, d2y};
+  }
+
+  // find x where the Hermite curve equals eq, by bisection within the bracketing segment
+  // (safe because Fritsch-Carlson tangents keep each segment monotonic). Returns null if
+  // eq falls outside the tested e-range, same contract as inverseInterpX below.
+  function hermiteInverseX(hermite, eq){
+    const {xs, ys} = hermite;
+    const n = xs.length;
+    const eMin = ys[n-1], eMax = ys[0];
+    if(eq > eMax || eq < eMin) return null;
+    let k = -1;
+    for(let i=0;i<n-1;i++){
+      if(eq<=ys[i]+1e-12 && eq>=ys[i+1]-1e-12){ k=i; break; }
+    }
+    if(k===-1) return null;
+    let lo = xs[k], hi = xs[k+1];
+    for(let iter=0; iter<60; iter++){
+      const mid = (lo+hi)/2;
+      const {y} = hermiteEval(hermite, mid);
+      if(y > eq) lo = mid; else hi = mid;
+    }
+    return (lo+hi)/2;
+  }
+
+
+  // e.g. a repeated load-step check — are dropped, keeping the first)
+  function buildHermite(points){
+    const xs=[], ys=[];
+    for(const p of points){
+      if(xs.length===0 || p.x > xs[xs.length-1] + 1e-9){ xs.push(p.x); ys.push(p.e); }
+    }
+    if(xs.length < 2) return null;
+    const ms = monotoneTangents(xs, ys);
+    return {xs, ys, ms};
+  }
+
+  // search the smooth curve (not just the lab readings) for its point of maximum curvature,
+  // restricted to stresses below where the virgin compression line begins
+  function findMaxCurvature(hermite, searchStart, searchEnd){
+    const {xs} = hermite;
+    if(searchStart === null || searchStart === undefined) searchStart = xs[0];
+    if(searchStart < xs[0]) searchStart = xs[0];
+    if(searchEnd <= searchStart) return null;
+    const N = 400;
+    let maxK=-1, best=null;
+    for(let s=1;s<N;s++){ // exclude the exact endpoints so the result is an interior point
+      const xq = searchStart + (searchEnd-searchStart)*s/N;
+      const {y,dy,d2y} = hermiteEval(hermite, xq);
+      const k = Math.abs(d2y)/Math.pow(1+dy*dy, 1.5);
+      if(k>maxK){ maxK=k; best={x:xq, y, dy}; }
+    }
+    return best;
+  }
+
+  function interpE(xq, data){
+    // piecewise-linear in (x=log10 p, e); data must be sorted by x ascending
+    if(xq <= data[0].x){
+      const t=(xq-data[0].x)/(data[1].x-data[0].x);
+      return data[0].e + t*(data[1].e-data[0].e);
+    }
+    if(xq >= data[data.length-1].x){
+      const n=data.length;
+      const t=(xq-data[n-2].x)/(data[n-1].x-data[n-2].x);
+      return data[n-2].e + t*(data[n-1].e-data[n-2].e);
+    }
+    for(let i=0;i<data.length-1;i++){
+      if(xq>=data[i].x && xq<=data[i+1].x){
+        const t=(xq-data[i].x)/(data[i+1].x-data[i].x);
+        return data[i].e + t*(data[i+1].e-data[i].e);
+      }
+    }
+    return null;
+  }
+
+  function inverseInterpX(eq, data){
+    // e assumed monotonically non-increasing with x; returns null if outside data range
+    const eMin = data[data.length-1].e, eMax = data[0].e;
+    if(eq > eMax || eq < eMin) return null;
+    for(let i=0;i<data.length-1;i++){
+      if(eq<=data[i].e+1e-12 && eq>=data[i+1].e-1e-12){
+        const de = data[i].e-data[i+1].e;
+        const t = de<1e-12 ? 0 : (data[i].e-eq)/de;
+        return data[i].x + t*(data[i+1].x-data[i].x);
+      }
+    }
+    return null;
+  }
+
+  function compute(){
+    const e0 = parseFloat(els.e0.value);
+    const sigmaV0 = parseFloat(els.sigmaV0.value);
+    if(isNaN(e0) || isNaN(sigmaV0) || sigmaV0<=0) return {error:'Set e0 and in-situ stress.'};
+
+    // preserve entry order for phase detection & plotting the true (possibly hysteretic) path
+    const ordered = withPhase(rows.filter(r => r.p>0 && r.val!==null && r.val!==undefined && !isNaN(r.val)))
+      .map(r => ({...r, e: toVoidRatio(r.val, e0), x: Math.log10(r.p)}));
+    if(ordered.length < 4) return {error: 'Add at least 4 rows with a stress and a strain reading.'};
+
+    // "clean" = full dataset sorted by stress, used only for plotting the point markers/table cross-refs
+    const clean = [...ordered].sort((a,b)=>a.x-b.x);
+
+    // loadingClean = loading-branch-only points, sorted ascending by stress: this is the
+    // "compression curve" that Casagrande / Pacheco-Silva / the 0.42e0 correction are defined against
+    const loadingClean = ordered.filter(r => r.phase==='load').sort((a,b)=>a.x-b.x);
+    if(loadingClean.length < 4) return {error: 'Need at least 4 points on the loading branch (stress reaching a new maximum).'};
+
+    const virginPts = ordered.filter(r=>r.cc);
+    const recompPts = ordered.filter(r=>r.cr);
+    if(virginPts.length < 2) return {error:'Select 2+ points for the virgin compression line (Cc column).'};
+
+    const virgin = linreg(virginPts);
+    if(!virgin) return {error:'Virgin compression points are degenerate (need spread in stress).'};
+    const Cc_lab = -virgin.m;
+
+    // Cc,epsilon (compression ratio): the same slope but computed directly from raw
+    // strain, never touching void ratio or e0. Cc,epsilon = Cc/(1+e0), but unlike Cc it doesn't require
+    // trusting e0 to get there -- it's the number to use when e0 is uncertain or unknown.
+    const virginStrain = linreg(virginPts.map(r => ({x:r.x, e:r.val/100})));
+    const CR = virginStrain ? virginStrain.m : null;
+
+    let recomp = null, Cr = null, RR = null;
+    if(recompPts.length >= 2){
+      recomp = linreg(recompPts);
+      if(recomp) Cr = -recomp.m;
+      const recompStrain = linreg(recompPts.map(r => ({x:r.x, e:r.val/100})));
+      if(recompStrain) RR = recompStrain.m;
+    }
+
+    // --- Casagrande: point of max curvature found continuously along a smooth curve through
+    // the loading-branch points, not restricted to the lab readings themselves. The search
+    // range defaults to [first loading point, start of the checked virgin line] but either
+    // end can be overridden by the user via the search-range inputs.
+    const virginStartX = Math.min(...virginPts.map(p=>p.x));
+    const hermite = buildHermite(loadingClean);
+    let casagrande = null;
+    if(hermite){
+      const userMin = parseFloat(els.searchMin.value);
+      const userMax = parseFloat(els.searchMax.value);
+      const searchStart = !isNaN(userMin) && userMin>0 ? Math.log10(userMin) : hermite.xs[0];
+      const searchEnd = !isNaN(userMax) && userMax>0 ? Math.log10(userMax) : virginStartX;
+      const peak = findMaxCurvature(hermite, searchStart, searchEnd);
+      if(peak){
+        const p0 = {x:peak.x, e:peak.y};
+        const mt = peak.dy;
+        function norm(v){const L=Math.hypot(v[0],v[1])||1; return [v[0]/L, v[1]/L];}
+        const tdir = norm([1, mt]);
+        const hdir = norm([1, 0]);
+        let bisDir = [tdir[0]+hdir[0], tdir[1]+hdir[1]];
+        if(Math.hypot(bisDir[0],bisDir[1]) < 1e-9) bisDir = [0,1]; // degenerate: near-vertical bisector
+        const mb = Math.abs(bisDir[0]) < 1e-9 ? Infinity : bisDir[1]/bisDir[0];
+        let xPc;
+        if(mb === Infinity){
+          xPc = p0.x;
+        } else if (Math.abs(mb - virgin.m) < 1e-12){
+          xPc = null;
+        } else {
+          xPc = (virgin.b - p0.e + mb*p0.x)/(mb - virgin.m);
+        }
+        if(xPc !== null){
+          casagrande = {
+            x0:p0.x, y0:p0.e, mt, mb, xPc, p:Math.pow(10,xPc),
+            ePc: virgin.m*xPc+virgin.b
+          };
+        }
+      }
+    }
+
+    // --- Pacheco-Silva --- (point B must sit on the same smooth curve that's actually
+    // plotted, not a straight-line interpolation between the raw lab readings)
+    const xA = (e0 - virgin.b)/virgin.m;
+    const eB = hermite ? hermiteEval(hermite, xA).y : interpE(xA, loadingClean);
+    const xC = (eB - virgin.b)/virgin.m;
+    const pacheco = { xA, eB, xC, p: Math.pow(10,xC) };
+
+    // --- 0.42 e0 field curve (Schmertmann) --- likewise, find the point on the smooth
+    // curve itself when the target falls within the tested range
+    const eTarget = 0.42*e0;
+    let x042 = hermite ? hermiteInverseX(hermite, eTarget) : inverseInterpX(eTarget, loadingClean);
+    let extrapolated = false;
+    if(x042 === null){
+      x042 = (eTarget - virgin.b)/virgin.m;
+      extrapolated = true;
+    }
+    const pcForField = els.pcSource.value === 'pacheco' && pacheco ? pacheco.p : (casagrande ? casagrande.p : null);
+    let field = null;
+    if(pcForField && recomp){
+      const xV0 = Math.log10(sigmaV0);
+      const xPcField = Math.log10(pcForField);
+      const eAtPc = e0 + recomp.m*(xPcField - xV0);
+      const Cc_field = -(eTarget - eAtPc)/(x042 - xPcField);
+      const CR_field = Cc_field/(1+e0); // same slope re-expressed in strain units; the 0.42e0
+        // target itself is still defined relative to absolute void ratio, so this is a unit
+        // conversion for consistent display, not a way to remove the e0 dependency entirely
+      field = { eAtPc, x042, eTarget, Cc_field, CR_field, extrapolated, xV0, xPcField };
+    }
+
+    return { ordered, clean, loadingClean, hermite, e0, sigmaV0, virgin, Cc_lab, CR, recomp, Cr, RR, casagrande, pacheco, field, virginStartX };
+  }
+
+  // ---------- rendering ----------
+
+  function fmt(v, d=3){ return (v===null||v===undefined||isNaN(v)) ? '&mdash;' : v.toFixed(d); }
+  function fmtP(v){ return (v===null||v===undefined||isNaN(v)) ? '&mdash;' : v.toFixed(v<10?2: (v<100?1:0)); }
+
+  function renderResults(res, unit){
+    const cards = [];
+    if(res.error){
+      els.resultsGrid.innerHTML = `<div class="result-card"><div class="label">Status</div><div class="value" style="font-size:0.95rem">${res.error}</div></div>`;
+      return;
+    }
+    cards.push(`<div class="result-card virgin"><div class="label">C<sub>c,&epsilon;</sub> (lab)</div><div class="value">${res.CR!==null?fmt(res.CR):'&mdash;'}</div></div>`);
+    cards.push(`<div class="result-card recomp"><div class="label">C<sub>r,&epsilon;</sub> &mdash; recompression ratio</div><div class="value">${res.RR!==null?fmt(res.RR):'&mdash; <span class="unit">select pts</span>'}</div></div>`);
+    cards.push(`<div class="result-card casagrande"><div class="label">&sigma;&prime;<sub>p</sub> &mdash; Casagrande</div><div class="value">${res.casagrande?fmtP(res.casagrande.p):'&mdash;'}<span class="unit">${unit}</span></div></div>`);
+    cards.push(`<div class="result-card pacheco"><div class="label">&sigma;&prime;<sub>p</sub> &mdash; Pacheco-Silva</div><div class="value">${fmtP(res.pacheco.p)}<span class="unit">${unit}</span></div></div>`);
+    if(res.field){
+      cards.push(`<div class="result-card field"><div class="label">C<sub>c,&epsilon;</sub> (field, 0.42e&#8320; corrected)</div><div class="value">${fmt(res.field.CR_field)}</div></div>`);
+    } else {
+      cards.push(`<div class="result-card field"><div class="label">C<sub>c,&epsilon;</sub> (field)</div><div class="value" style="font-size:0.85rem">select C<sub>r</sub> points</div></div>`);
+    }
+    if(res.RR !== null && res.CR !== null){
+      cards.push(`<div class="result-card recomp"><div class="label">C<sub>r,&epsilon;</sub> / C<sub>c,&epsilon;</sub> (lab)</div><div class="value">${fmt(res.RR/res.CR, 2)}</div></div>`);
+      if(res.field){
+        cards.push(`<div class="result-card field"><div class="label">C<sub>r,&epsilon;</sub> / C<sub>c,&epsilon;</sub> (field)</div><div class="value">${fmt(res.RR/res.field.CR_field, 2)}</div></div>`);
+      }
+    }
+    els.resultsGrid.innerHTML = cards.join('');
+  }
+
+  function renderChart(res, unit, showOverride){
+    const svg = els.chart;
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    const {W,H,ML,MR,MT,MB,plotW,plotH} = CHART;
+    // showOverride lets the print-report generator force every construction visible,
+    // regardless of what's toggled on/off for the interactive view
+    const show = {
+      casagrande: showOverride ? showOverride.casagrande : els.showCasagrande.checked,
+      pacheco: showOverride ? showOverride.pacheco : els.showPacheco.checked,
+      recomp: showOverride ? showOverride.recomp : els.showRecomp.checked,
+      field: showOverride ? showOverride.field : els.showField.checked,
+    };
+
+    if(res.error){
+      currentView = null;
+      const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x', W/2); t.setAttribute('y', H/2);
+      t.setAttribute('text-anchor','middle');
+      t.setAttribute('fill','var(--ink-soft)');
+      t.setAttribute('font-family','IBM Plex Sans, sans-serif');
+      t.setAttribute('font-size','15');
+      t.textContent = res.error;
+      svg.appendChild(t);
+      return;
+    }
+
+    const data = res.clean; // sorted by stress, for axis extents
+    const pathData = res.ordered; // original entry order, so an unload branch traces back correctly
+    let xs = data.map(d=>d.x);
+    if(res.casagrande) xs.push(res.casagrande.xPc);
+    xs.push(res.pacheco.xC, res.pacheco.xA);
+    if(res.field) xs.push(res.field.x042, res.field.xV0, res.field.xPcField);
+    let xMin = Math.min(...xs)-0.15, xMax = Math.max(...xs)+0.15;
+    let ysrc = data.map(d=>d.e);
+    ysrc.push(res.e0);
+    if(res.field) ysrc.push(res.field.eTarget, res.field.eAtPc);
+    if(res.casagrande) ysrc.push(res.casagrande.ePc);
+    ysrc.push(res.pacheco.eB);
+    let eMin = Math.min(...ysrc)-0.05, eMax = Math.max(...ysrc)+0.05;
+
+    // auto-fit domain is always (re)computed from the data; a manual zoom/pan overrides it
+    // until the user hits Reset, so editing data doesn't fight with an in-progress zoom.
+    autoView = {xMin, xMax, eMin, eMax};
+    const view = viewOverride || autoView;
+    xMin = view.xMin; xMax = view.xMax; eMin = view.eMin; eMax = view.eMax;
+    currentView = view;
+
+    function X(x){ return ML + (x-xMin)/(xMax-xMin)*plotW; }
+    function Y(e){ return MT + (1-(e-eMin)/(eMax-eMin))*plotH; }
+
+    function ns(tag, attrs){
+      const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      for(const k in attrs) el.setAttribute(k, attrs[k]);
+      return el;
+    }
+
+    // everything data-derived (curve, points, construction lines/markers) is clipped to the
+    // plot rectangle -- otherwise a zoomed-in view or a far extrapolated construction point
+    // (like 0.42e0, which is often well outside the tested stress range) spills into the margins
+    const defs = ns('defs', {});
+    const clipRect = ns('rect', {x:ML, y:MT, width:plotW, height:plotH});
+    const clipPath = ns('clipPath', {id:'plotClip'});
+    clipPath.appendChild(clipRect);
+    defs.appendChild(clipPath);
+    svg.appendChild(defs);
+    const plotGroup = ns('g', {'clip-path':'url(#plotClip)'});
+    svg.appendChild(plotGroup);
+
+    // grid: vertical log-decade lines
+    const decadeMin = Math.floor(xMin), decadeMax = Math.ceil(xMax);
+    for(let d=decadeMin; d<=decadeMax; d++){
+      for(let m=1; m<=9; m++){
+        const x = d + Math.log10(m);
+        if(x<xMin || x>xMax) continue;
+        const isMajor = (m===1);
+        plotGroup.appendChild(ns('line',{x1:X(x),x2:X(x),y1:MT,y2:MT+plotH,
+          stroke:'var(--rule)', 'stroke-width': isMajor?1:0.5, opacity:isMajor?0.9:0.4}));
+        if(isMajor){
+          const lbl = ns('text',{x:X(x), y:MT+plotH+20, 'text-anchor':'middle',
+            'font-family':'IBM Plex Mono, monospace', 'font-size':'12.5', fill:'var(--ink-soft)'});
+          lbl.textContent = Math.pow(10,d) >= 1 ? Math.pow(10,d).toLocaleString() : Math.pow(10,d);
+          svg.appendChild(lbl);
+        }
+      }
+    }
+    // horizontal grid, shown as strain (%) -- converted back from the internal void-ratio values
+    const eToStrain = (e) => (res.e0 - e)/(1+res.e0) * 100;
+    const markerRows = (title, xVal, eVal, color, note) => {
+      const rows = [
+        {text:title, style:`font-weight:600;color:${color}`},
+        {text:`&sigma;&prime;<sub>v</sub> = ${fmtP(Math.pow(10,xVal))} ${unit}`},
+        {text:`&epsilon; = ${eToStrain(eVal).toFixed(2)}% &nbsp;(e = ${eVal.toFixed(3)})`},
+      ];
+      if(note) rows.push({text:note, style:'color:var(--ink-soft);font-size:0.7rem;'});
+      return rows;
+    };
+    const eStep = 0.1;
+    const eGridStart = Math.ceil(eMin/eStep)*eStep;
+    for(let e=eGridStart; e<=eMax; e+=eStep){
+      plotGroup.appendChild(ns('line',{x1:ML,x2:ML+plotW,y1:Y(e),y2:Y(e),
+        stroke:'var(--rule)','stroke-width':0.5,opacity:0.5}));
+      const lbl = ns('text',{x:ML-10, y:Y(e)+4, 'text-anchor':'end',
+        'font-family':'IBM Plex Mono, monospace','font-size':'12.5',fill:'var(--ink-soft)'});
+      lbl.textContent = Math.abs(eToStrain(e))<0.05 ? '0.0' : eToStrain(e).toFixed(1);
+      svg.appendChild(lbl);
+    }
+
+    // axis labels
+    const xlabel = ns('text',{x:ML+plotW/2, y:H-14,'text-anchor':'middle',
+      'font-family':'IBM Plex Sans, sans-serif','font-size':'14',fill:'var(--ink)','font-weight':'500'});
+    xlabel.textContent = `Vertical effective stress, \u03c3'v (${unit}, log scale)`;
+    svg.appendChild(xlabel);
+    const ylabel = ns('text',{x:20, y:MT+plotH/2, 'text-anchor':'middle',
+      'font-family':'IBM Plex Sans, sans-serif','font-size':'14',fill:'var(--ink)','font-weight':'500',
+      transform:`rotate(-90 20 ${MT+plotH/2})`});
+    ylabel.textContent = "Vertical strain, \u03b5 (%)";
+    svg.appendChild(ylabel);
+
+    // border
+    svg.appendChild(ns('rect',{x:ML,y:MT,width:plotW,height:plotH,fill:'none',stroke:'var(--rule-strong)','stroke-width':1}));
+
+    // measured curve: connect points in the order they were entered, so an unload/reload
+    // branch traces back across the plot correctly. Where two consecutive readings both sit
+    // on the loading branch, draw the smooth curve (same one Casagrande's curvature search
+    // uses) instead of a straight segment; everywhere else (unload legs, or a repeated
+    // reading at the same stress) fall back to a straight line.
+    let pathD = '';
+    pathData.forEach((d,i) => {
+      if(i === 0){ pathD += `M ${X(d.x).toFixed(2)} ${Y(d.e).toFixed(2)}`; return; }
+      const prev = pathData[i-1];
+      const bothLoading = prev.phase==='load' && d.phase==='load' && (d.x - prev.x) > 1e-9;
+      if(bothLoading && res.hermite){
+        const steps = 10;
+        for(let s=1; s<=steps; s++){
+          const xq = prev.x + (d.x-prev.x)*s/steps;
+          const {y} = hermiteEval(res.hermite, xq);
+          pathD += ` L ${X(xq).toFixed(2)} ${Y(y).toFixed(2)}`;
+        }
+      } else {
+        pathD += ` L ${X(d.x).toFixed(2)} ${Y(d.e).toFixed(2)}`;
+      }
+    });
+    plotGroup.appendChild(ns('path',{d:pathD, fill:'none', stroke:'var(--ink)', 'stroke-width':1.6}));
+    pathData.forEach(d=>{
+      const isLoad = d.phase === 'load';
+      const dot = ns('circle', isLoad
+        ? {cx:X(d.x),cy:Y(d.e),r:3.4,fill:'var(--paper)',stroke:'var(--ink)','stroke-width':1.4}
+        : {cx:X(d.x),cy:Y(d.e),r:3.2,fill:'var(--accent-pacheco)',stroke:'var(--paper)','stroke-width':1,opacity:0.85});
+      plotGroup.appendChild(dot);
+      // wider invisible hit-target so hovering doesn't require pixel-perfect aim
+      const hit = ns('circle',{cx:X(d.x),cy:Y(d.e),r:9,fill:'transparent',stroke:'none',style:'cursor:pointer'});
+      hit.addEventListener('pointerenter', evt => showPointTooltip(evt, d, res, unit));
+      hit.addEventListener('pointermove', evt => positionTooltip(evt));
+      hit.addEventListener('pointerleave', hideTooltip);
+      plotGroup.appendChild(hit);
+    });
+
+    // virgin line extended across chart
+    const vx1=xMin, vx2=xMax;
+    plotGroup.appendChild(ns('line',{x1:X(vx1),x2:X(vx2),y1:Y(res.virgin.m*vx1+res.virgin.b),y2:Y(res.virgin.m*vx2+res.virgin.b),
+      stroke:'var(--accent-virgin)','stroke-width':1.3,'stroke-dasharray':'5 4',opacity:0.85}));
+
+    // recompression line
+    if(res.recomp && show.recomp){
+      plotGroup.appendChild(ns('line',{x1:X(vx1),x2:X(vx2),y1:Y(res.recomp.m*vx1+res.recomp.b),y2:Y(res.recomp.m*vx2+res.recomp.b),
+        stroke:'var(--accent-recomp)','stroke-width':1.3,'stroke-dasharray':'2 3',opacity:0.85}));
+    }
+
+    // Casagrande construction
+    if(res.casagrande && show.casagrande){
+      const c = res.casagrande;
+      const col = 'var(--accent-casagrande)';
+      // horizontal through point
+      plotGroup.appendChild(ns('line',{x1:X(xMin),x2:X(c.xPc),y1:Y(c.y0),y2:Y(c.y0), stroke:col,'stroke-width':1,opacity:0.5}));
+      // tangent through point
+      const tx1=xMin, tx2=c.xPc;
+      plotGroup.appendChild(ns('line',{x1:X(tx1),x2:X(tx2),y1:Y(c.y0+c.mt*(tx1-c.x0)),y2:Y(c.y0+c.mt*(tx2-c.x0)),
+        stroke:col,'stroke-width':1,opacity:0.5}));
+      // bisector from point to Pc
+      plotGroup.appendChild(ns('line',{x1:X(c.x0),x2:X(c.xPc),y1:Y(c.y0),y2:Y(c.ePc), stroke:col,'stroke-width':1.5}));
+      // marker at max curvature point
+      plotGroup.appendChild(ns('circle',{cx:X(c.x0),cy:Y(c.y0),r:5,fill:'none',stroke:col,'stroke-width':1.6}));
+      attachMarkerTooltip(plotGroup, X(c.x0), Y(c.y0), markerRows('Point of max curvature', c.x0, c.y0, col));
+      // Pc marker + drop line
+      plotGroup.appendChild(ns('line',{x1:X(c.xPc),x2:X(c.xPc),y1:Y(c.ePc),y2:MT+plotH, stroke:col,'stroke-width':1,'stroke-dasharray':'3 3'}));
+      plotGroup.appendChild(ns('circle',{cx:X(c.xPc),cy:Y(c.ePc),r:4.5,fill:col}));
+      attachMarkerTooltip(plotGroup, X(c.xPc), Y(c.ePc), markerRows("\u03c3'p \u2014 Casagrande", c.xPc, c.ePc, col));
+      // this label lives in the margin below the axis, so it's not part of the clipped
+      // group -- but skip it once its stress falls outside the current view anyway
+      if(c.xPc >= xMin && c.xPc <= xMax){
+        const lbl = ns('text',{x:X(c.xPc),y:MT+plotH+38,'text-anchor':'middle','font-family':'IBM Plex Mono, monospace','font-size':'12',fill:col,'font-weight':'600'});
+        lbl.textContent = "\u03c3'p (C)";
+        svg.appendChild(lbl);
+      }
+    }
+
+    // Pacheco-Silva construction
+    if(res.pacheco && show.pacheco){
+      const ps = res.pacheco;
+      const col = 'var(--accent-pacheco)';
+      // horizontal at e0
+      plotGroup.appendChild(ns('line',{x1:X(xMin),x2:X(ps.xA),y1:Y(res.e0),y2:Y(res.e0), stroke:col,'stroke-width':1.3}));
+      // vertical from A down to curve at B
+      plotGroup.appendChild(ns('line',{x1:X(ps.xA),x2:X(ps.xA),y1:Y(res.e0),y2:Y(ps.eB), stroke:col,'stroke-width':1.3}));
+      // horizontal from B to virgin line at C
+      plotGroup.appendChild(ns('line',{x1:X(ps.xA),x2:X(ps.xC),y1:Y(ps.eB),y2:Y(ps.eB), stroke:col,'stroke-width':1.3}));
+      plotGroup.appendChild(ns('circle',{cx:X(ps.xA),cy:Y(res.e0),r:3.5,fill:col}));
+      attachMarkerTooltip(plotGroup, X(ps.xA), Y(res.e0), markerRows('Pacheco-Silva: point A', ps.xA, res.e0, col, 'Extended virgin line at e = e\u2080'));
+      plotGroup.appendChild(ns('circle',{cx:X(ps.xA),cy:Y(ps.eB),r:3.5,fill:col}));
+      attachMarkerTooltip(plotGroup, X(ps.xA), Y(ps.eB), markerRows('Pacheco-Silva: point B', ps.xA, ps.eB, col, 'Projected onto the lab curve'));
+      plotGroup.appendChild(ns('circle',{cx:X(ps.xC),cy:Y(ps.eB),r:4.5,fill:col}));
+      attachMarkerTooltip(plotGroup, X(ps.xC), Y(ps.eB), markerRows("\u03c3'p \u2014 Pacheco-Silva", ps.xC, ps.eB, col));
+      plotGroup.appendChild(ns('line',{x1:X(ps.xC),x2:X(ps.xC),y1:Y(ps.eB),y2:MT+plotH, stroke:col,'stroke-width':1,'stroke-dasharray':'3 3'}));
+      if(ps.xC >= xMin && ps.xC <= xMax){
+        const lbl = ns('text',{x:X(ps.xC),y:MT+plotH+56,'text-anchor':'middle','font-family':'IBM Plex Mono, monospace','font-size':'12',fill:col,'font-weight':'600'});
+        lbl.textContent = "\u03c3'p (PS)";
+        svg.appendChild(lbl);
+      }
+    }
+
+    // 0.42 e0 field curve
+    if(res.field && show.field){
+      const f = res.field;
+      const col = 'var(--accent-field)';
+      // recompression segment from (xV0, e0) to Pc
+      plotGroup.appendChild(ns('line',{x1:X(f.xV0),x2:X(f.xPcField),y1:Y(res.e0),y2:Y(f.eAtPc), stroke:col,'stroke-width':1.8}));
+      // field virgin segment from Pc to 0.42e0 point
+      plotGroup.appendChild(ns('line',{x1:X(f.xPcField),x2:X(f.x042),y1:Y(f.eAtPc),y2:Y(f.eTarget), stroke:col,'stroke-width':1.8}));
+      plotGroup.appendChild(ns('circle',{cx:X(f.xV0),cy:Y(res.e0),r:4,fill:col}));
+      attachMarkerTooltip(plotGroup, X(f.xV0), Y(res.e0), markerRows('In-situ point (\u03c3\u2032v0, e\u2080)', f.xV0, res.e0, col));
+      plotGroup.appendChild(ns('circle',{cx:X(f.xPcField),cy:Y(f.eAtPc),r:4,fill:col}));
+      attachMarkerTooltip(plotGroup, X(f.xPcField), Y(f.eAtPc), markerRows("\u03c3'p on recompression line", f.xPcField, f.eAtPc, col));
+      plotGroup.appendChild(ns('circle',{cx:X(f.x042),cy:Y(f.eTarget),r:4,fill:col}));
+      attachMarkerTooltip(plotGroup, X(f.x042), Y(f.eTarget), markerRows('0.42e\u2080 point', f.x042, f.eTarget, col, f.extrapolated ? 'Extrapolated beyond tested range' : 'Interpolated from lab curve'));
+      plotGroup.appendChild(ns('line',{x1:X(xMin),x2:X(f.x042),y1:Y(f.eTarget),y2:Y(f.eTarget),stroke:col,'stroke-width':0.8,'stroke-dasharray':'2 3',opacity:0.6}));
+      const lbl = ns('text',{x:X(f.x042)+6,y:Y(f.eTarget)-6,'font-family':'IBM Plex Mono, monospace','font-size':'12',fill:col,'font-weight':'600'});
+      lbl.textContent = '0.42e\u2080';
+      plotGroup.appendChild(lbl);
+    }
+
+    // legend
+    const legendItems = [
+      {c:'var(--ink)', label:'Lab curve (open = load, filled dot = unload)', w:1.6},
+    ];
+    legendItems.push({c:'var(--accent-virgin)', label:'Virgin compression line', dash:'5 4', w:1.3});
+    if(res.casagrande && show.casagrande){
+      legendItems.push({c:'var(--accent-casagrande)', label:'Casagrande construction', w:1.5});
+    }
+    if(res.recomp && show.recomp){
+      legendItems.push({c:'var(--accent-recomp)', label:'Recompression line', dash:'2 3', w:1.3});
+    }
+    if(res.pacheco && show.pacheco){
+      legendItems.push({c:'var(--accent-pacheco)', label:'Pacheco-Silva construction', w:1.3});
+    }
+    if(res.field && show.field){
+      legendItems.push({c:'var(--accent-field)', label:'Field curve (0.42e\u2080)', w:1.8});
+    }
+    let ly = MT+14;
+    legendItems.forEach((it,i)=>{
+      const lx = ML+plotW-300;
+      const lineAttrs = {x1:lx,x2:lx+20,y1:ly+i*20,y2:ly+i*20,stroke:it.c,'stroke-width':it.w};
+      if(it.dash) lineAttrs['stroke-dasharray'] = it.dash;
+      svg.appendChild(ns('line',lineAttrs));
+      const t = ns('text',{x:lx+27,y:ly+i*20+4,'font-family':'IBM Plex Sans, sans-serif','font-size':'12',fill:'var(--ink-soft)'});
+      t.textContent = it.label;
+      svg.appendChild(t);
+    });
+  }
+
+  function recompute(){
+    const unit = els.pressureUnit.value;
+    const res = compute();
+    lastRes = res; lastUnit = unit;
+    renderResults(res, unit);
+    renderChart(res, unit);
+  }
+
+  function redraw(){
+    // repaint the chart only, using the last computed data — for pan/zoom, which never
+    // changes the underlying stats and shouldn't recompute them on every wheel tick.
+    if(lastRes) renderChart(lastRes, lastUnit);
+  }
+
+  // ---------- hover tooltip ----------
+
+  function showPointTooltip(evt, d, res, unit){
+    if(isDragging) return;
+    const phaseLabel = d.phase === 'load' ? 'Loading' : 'Rebound';
+    const phaseColor = d.phase === 'load' ? 'var(--accent-virgin)' : 'var(--accent-pacheco)';
+    const strainVal = (res.e0 - d.e)/(1+res.e0) * 100;
+    els.chartTooltip.innerHTML = `
+      <div class="row stress">&sigma;&prime;<sub>v</sub> = ${fmtP(d.p)} ${unit}</div>
+      <div class="row">&epsilon; = ${strainVal.toFixed(2)}% &nbsp; (e = ${d.e.toFixed(3)})</div>
+      <div class="row" style="color:${phaseColor}; font-weight:600;">${phaseLabel}</div>
+    `;
+    els.chartTooltip.style.display = 'block';
+    positionTooltip(evt);
+  }
+
+  // generic tooltip for a construction marker (Casagrande / Pacheco-Silva / 0.42e0 points) —
+  // takes pre-built HTML rows rather than a data row, since these points carry different info
+  function showMarkerTooltip(evt, rowsHtml){
+    if(isDragging) return;
+    els.chartTooltip.innerHTML = rowsHtml.map(r => `<div class="row" ${r.style?`style="${r.style}"`:''}>${r.text}</div>`).join('');
+    els.chartTooltip.style.display = 'block';
+    positionTooltip(evt);
+  }
+
+  function attachMarkerTooltip(svg, cx, cy, rowsHtml, extraR){
+    const hit = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    hit.setAttribute('cx', cx); hit.setAttribute('cy', cy); hit.setAttribute('r', extraR||9);
+    hit.setAttribute('fill','transparent'); hit.setAttribute('stroke','none');
+    hit.setAttribute('style','cursor:pointer');
+    hit.addEventListener('pointerenter', evt => showMarkerTooltip(evt, rowsHtml));
+    hit.addEventListener('pointermove', evt => positionTooltip(evt));
+    hit.addEventListener('pointerleave', hideTooltip);
+    svg.appendChild(hit);
+  }
+
+
+  function positionTooltip(evt){
+    const panelRect = els.chart.parentElement.getBoundingClientRect();
+    let left = evt.clientX - panelRect.left + 14;
+    let top = evt.clientY - panelRect.top + 14;
+    // keep the tooltip inside the panel bounds
+    const maxLeft = panelRect.width - 150;
+    if(left > maxLeft) left = evt.clientX - panelRect.left - 150;
+    els.chartTooltip.style.left = left + 'px';
+    els.chartTooltip.style.top = top + 'px';
+  }
+
+  function hideTooltip(){
+    els.chartTooltip.style.display = 'none';
+  }
+
+  // ---------- zoom / pan ----------
+
+  function screenToSvgPoint(evt){
+    const pt = els.chart.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    const ctm = els.chart.getScreenCTM();
+    if(!ctm) return {x:0,y:0};
+    const p = pt.matrixTransform(ctm.inverse());
+    return {x:p.x, y:p.y};
+  }
+
+  function zoomAround(cxData, cyData, factor){
+    if(!currentView) return;
+    const newXMin = cxData - (cxData-currentView.xMin)*factor;
+    const newXMax = cxData + (currentView.xMax-cxData)*factor;
+    const newEMin = cyData - (cyData-currentView.eMin)*factor;
+    const newEMax = cyData + (currentView.eMax-cyData)*factor;
+    if((newXMax-newXMin) < 0.05 || (newEMax-newEMin) < 0.01) return; // too zoomed in
+    if((newXMax-newXMin) > 12 || (newEMax-newEMin) > 20) return;      // too zoomed out
+    viewOverride = {xMin:newXMin, xMax:newXMax, eMin:newEMin, eMax:newEMax};
+    redraw();
+  }
+
+  els.chart.addEventListener('wheel', (evt) => {
+    if(!currentView) return;
+    evt.preventDefault();
+    const {W,H,ML,MT,plotW,plotH} = CHART;
+    const {x:px, y:py} = screenToSvgPoint(evt);
+    const cxData = currentView.xMin + (px-ML)/plotW*(currentView.xMax-currentView.xMin);
+    const cyData = currentView.eMin + (1-(py-MT)/plotH)*(currentView.eMax-currentView.eMin);
+    const factor = evt.deltaY < 0 ? 0.85 : (1/0.85);
+    zoomAround(cxData, cyData, factor);
+  }, {passive:false});
+
+  els.zoomIn.addEventListener('click', () => {
+    if(!currentView) return;
+    const cx = (currentView.xMin+currentView.xMax)/2, cy = (currentView.eMin+currentView.eMax)/2;
+    zoomAround(cx, cy, 0.7);
+  });
+  els.zoomOut.addEventListener('click', () => {
+    if(!currentView) return;
+    const cx = (currentView.xMin+currentView.xMax)/2, cy = (currentView.eMin+currentView.eMax)/2;
+    zoomAround(cx, cy, 1/0.7);
+  });
+  els.zoomReset.addEventListener('click', () => {
+    viewOverride = null;
+    redraw();
+  });
+
+  let isDragging = false, dragStartPix = null, dragStartView = null;
+  els.chart.addEventListener('pointerdown', (evt) => {
+    if(!currentView) return;
+    isDragging = true;
+    hideTooltip();
+    els.chart.classList.add('dragging');
+    els.chart.setPointerCapture(evt.pointerId);
+    dragStartPix = screenToSvgPoint(evt);
+    dragStartView = {...currentView};
+  });
+  els.chart.addEventListener('pointermove', (evt) => {
+    if(!isDragging) return;
+    const {plotW,plotH} = CHART;
+    const p = screenToSvgPoint(evt);
+    const dxPix = p.x - dragStartPix.x, dyPix = p.y - dragStartPix.y;
+    const rangeX = dragStartView.xMax - dragStartView.xMin;
+    const rangeE = dragStartView.eMax - dragStartView.eMin;
+    const dxData = dxPix/plotW*rangeX;
+    const dyData = dyPix/plotH*rangeE;
+    viewOverride = {
+      xMin: dragStartView.xMin - dxData, xMax: dragStartView.xMax - dxData,
+      eMin: dragStartView.eMin + dyData, eMax: dragStartView.eMax + dyData,
+    };
+    redraw();
+  });
+  function endDrag(){ isDragging = false; els.chart.classList.remove('dragging'); }
+  els.chart.addEventListener('pointerup', endDrag);
+  els.chart.addEventListener('pointercancel', endDrag);
+
+  // ---------- printable documentation ----------
+
+  function escapeHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function buildReportHtml(res, unit){
+    const now = new Date();
+    const dateStr = now.toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'});
+    const timeStr = now.toLocaleTimeString();
+
+    const ccPts = res.ordered.filter(r=>r.cc).map(r=>fmtP(r.p)).join(', ');
+    const crPts = res.ordered.filter(r=>r.cr).map(r=>fmtP(r.p)).join(', ');
+
+    const dataRows = res.ordered.map(r => `
+      <tr>
+        <td>${fmtP(r.p)}</td>
+        <td>${r.val.toFixed(2)}</td>
+        <td>${r.e.toFixed(3)}</td>
+        <td>${r.phase==='load' ? 'Loading' : 'Rebound'}</td>
+        <td style="text-align:center">${r.cc ? '&#10003;' : ''}</td>
+        <td style="text-align:center">${r.cr ? '&#10003;' : ''}</td>
+      </tr>`).join('');
+
+    const resultsRows = [
+      ['C<sub>c,&epsilon;</sub> &mdash; compression ratio, strain basis', res.CR!==null ? fmt(res.CR) : '\u2014'],
+      ['C<sub>r,&epsilon;</sub> &mdash; recompression ratio, strain basis', res.RR!==null ? fmt(res.RR) : '\u2014'],
+      ["\u03c3'<sub>p</sub> \u2014 Casagrande", res.casagrande ? `${fmtP(res.casagrande.p)} ${unit}` : '\u2014'],
+      ["\u03c3'<sub>p</sub> \u2014 Pacheco-Silva", `${fmtP(res.pacheco.p)} ${unit}`],
+      res.field ? [`C<sub>c,&epsilon;</sub> (field, 0.42e&#8320; corrected; still assumes e&#8320; = ${fmt(res.e0)})`, fmt(res.field.CR_field)] : ['C<sub>c,&epsilon;</sub> (field)', '\u2014'],
+      (res.RR!==null && res.CR!==null) ? ['C<sub>r,&epsilon;</sub> / C<sub>c,&epsilon;</sub> (lab)', fmt(res.RR/res.CR, 2)] : null,
+      (res.RR!==null && res.field) ? ['C<sub>r,&epsilon;</sub> / C<sub>c,&epsilon;</sub> (field)', fmt(res.RR/res.field.CR_field, 2)] : null,
+    ].filter(Boolean).map(([label,val]) => `<tr><td>${label}</td><td><b>${val}</b></td></tr>`).join('');
+
+    const chartSvg = els.chart.outerHTML;
+
+    const pcSourceLabel = els.pcSource.value === 'pacheco' ? 'Pacheco-Silva' : 'Casagrande';
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Consolidation Test Interpretation \u2014 ${dateStr}</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #ffffff; --ink: #22282f; --ink-soft: #4d5560; --rule: #c7c2b0; --rule-strong: #9a9382;
+    --accent-virgin: #1b7a6b; --accent-casagrande: #8e44ad; --accent-recomp: #d68910; --accent-pacheco: #2874a6; --accent-field: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'IBM Plex Sans', Arial, sans-serif;
+    color: var(--ink);
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 36px 28px 60px;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 24px; }
+  h2 {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);
+    border-bottom: 1px solid var(--rule); padding-bottom: 6px; margin: 32px 0 14px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 10px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--rule); font-family: 'IBM Plex Mono', monospace; }
+  th { color: var(--ink-soft); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  .results-table td:first-child { font-family: 'IBM Plex Sans', Arial, sans-serif; }
+  .params { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; margin-bottom: 10px; }
+  .params div { margin-bottom: 3px; }
+  .pts-used { font-size: 0.82rem; color: var(--ink-soft); margin-top: -4px; margin-bottom: 14px; }
+  svg#chart { width: 100%; height: auto; display: block; margin: 10px 0 20px; }
+  .print-btn {
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 0.85rem; font-weight: 600;
+    padding: 8px 16px; border-radius: 3px; border: 1px solid var(--ink); background: var(--ink);
+    color: #fff; cursor: pointer; margin-bottom: 24px;
+  }
+  footer { margin-top: 40px; font-size: 0.72rem; color: var(--ink-soft); border-top: 1px solid var(--rule); padding-top: 10px; }
+  @media print {
+    .print-btn { display: none; }
+    body { padding: 0 10px; }
+  }
+</style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+  <h1>Consolidation Test Interpretation</h1>
+  <div class="meta">Generated ${dateStr} at ${timeStr}</div>
+
+  <h2>Reference state</h2>
+  <div class="params">
+    <div>Initial void ratio, e&#8320;: <b>${fmt(res.e0)}</b></div>
+    <div>In-situ vertical effective stress, &sigma;&prime;<sub>v0</sub>: <b>${fmtP(res.sigmaV0)} ${unit}</b></div>
+    <div>Field curve constructed from: <b>${pcSourceLabel} &sigma;&prime;<sub>p</sub></b></div>
+  </div>
+
+  <h2>Test data</h2>
+  <table>
+    <thead><tr><th>\u03c3&prime;<sub>v</sub> (${unit})</th><th>Strain (%)</th><th>Void ratio, e</th><th>Phase</th><th>Used for C<sub>c</sub></th><th>Used for C<sub>r</sub></th></tr></thead>
+    <tbody>${dataRows}</tbody>
+  </table>
+  <div class="pts-used">
+    Virgin compression line (C<sub>c</sub>) regressed from &sigma;&prime;<sub>v</sub> = ${ccPts || '\u2014'} ${unit}.<br>
+    Recompression line (C<sub>r</sub>) regressed from &sigma;&prime;<sub>v</sub> = ${crPts || '\u2014'} ${unit}.
+  </div>
+
+  <h2>Compression curve</h2>
+  ${chartSvg}
+
+  <h2>Results</h2>
+  <table class="results-table">${resultsRows}</table>
+
+  <footer>Casagrande (1936) &middot; Pacheco-Silva (1970) &middot; Schmertmann sample-disturbance correction. Generated by the Consolidation Curve Interpreter.</footer>
+</body>
+</html>`;
+  }
+
+  function printReport(){
+    if(!lastRes || lastRes.error){
+      alert('Add valid test data first \u2014 the results panel needs to compute before a report can be generated.');
+      return;
+    }
+    // Documentation should show both graphical constructions regardless of which are
+    // currently toggled on for interactive viewing, so render that version just for the
+    // snapshot, then immediately restore the chart to whatever the user actually had shown.
+    renderChart(lastRes, lastUnit, {casagrande:true, pacheco:true, recomp:els.showRecomp.checked, field:els.showField.checked});
+    const html = buildReportHtml(lastRes, lastUnit);
+    renderChart(lastRes, lastUnit);
+
+    const w = window.open('', '_blank');
+    if(!w){
+      alert('Your browser blocked the new tab. Please allow pop-ups for this page and try again.');
+      return;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  }
+
+  els.printReport.addEventListener('click', printReport);
+
+  // init
+  renderTable();
+  els.e0.value = 1.000;
+  els.sigmaV0.value = 1000;
+  els.searchUnitLabel.textContent = els.pressureUnit.value;
+  recompute();
+})();
+</script>
+</body>
+</html>
